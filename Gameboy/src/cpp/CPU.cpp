@@ -136,6 +136,17 @@ void CPU::CPU_Step()
 
 	func_opcode opcode = m_opcodes[instruction];
 	(this->*opcode)(instruction);
+
+	if (m_interruptMasterTimer == 0x1)
+	{
+		m_interruptMasterEnableFlag = true;
+		m_interruptMasterTimer = 0xFF;
+	}
+	else if (m_interruptMasterTimer == 0x0)
+	{
+		m_interruptMasterEnableFlag = false;
+		m_interruptMasterTimer = 0xFF;
+	}
 }
 
 inline void CPU::SetFlagIf(BYTE flag, bool condition)

@@ -20,6 +20,9 @@ public:
 	static void ImGui_PPU_Registers(const CPU* sm83);
 	static void ImGui_Registers(const CPU* sm83);
 
+	static WORD ConvertHexToNumber(const char* hex);
+	static bool CheckShouldBreak(const CPU* sm83, WORD breakpointAddress);
+
 private:
 	static std::string GetOpcodeDebugInfo(const CPU* sm83);
 };

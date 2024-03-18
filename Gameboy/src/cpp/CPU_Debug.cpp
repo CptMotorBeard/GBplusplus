@@ -367,6 +367,21 @@ void CPU_DEBUG::ImGui_Registers(const CPU* sm83)
     ImGui::Text(GetOpcodeDebugInfo(sm83).c_str());
 }
 
+WORD CPU_DEBUG::ConvertHexToNumber(const char* hex)
+{
+    std::stringstream ss;
+    ss << std::hex << hex;
+
+    WORD val;
+    ss >> val;
+    return val;
+}
+
+bool CPU_DEBUG::CheckShouldBreak(const CPU* sm83, WORD breakpointAddress)
+{
+    return sm83->PC.pair == breakpointAddress;
+}
+
 std::string CPU_DEBUG::GetOpcodeDebugInfo(const CPU* sm83)
 {
     std::stringstream debugInfo;

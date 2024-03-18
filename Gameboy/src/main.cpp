@@ -20,6 +20,8 @@ struct Debugger
 
     bool shouldStep = false;
     bool shouldRun = false;
+    bool hasBreakPoint = false;
+    WORD breakpointAddress = 0x0000;
 };
 
 void UpdateDebugWindow(sf::RenderWindow& window, Debugger& debugger)
@@ -33,7 +35,7 @@ void UpdateDebugWindow(sf::RenderWindow& window, Debugger& debugger)
     ImGui::SetNextWindowSize(windowSize);
     ImGui::SetNextWindowPos(ImVec2(windowSize.x * 2, 0));
 
-    if (ImGui::Begin("Register Debugger", (bool*)0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+    if (ImGui::Begin("Debugger0", (bool*)0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
         CPU_DEBUG::ImGui_Registers(debugger.sm83);
         float totalElapsedTime = debugger.elapsedClock.getElapsedTime().asSeconds();
@@ -45,9 +47,59 @@ void UpdateDebugWindow(sf::RenderWindow& window, Debugger& debugger)
 
     ImGui::SetNextWindowSize(windowSize);
     ImGui::SetNextWindowPos(ImVec2(windowSize.x * 3, 0));
-    if (ImGui::Begin("PPU Debugger", (bool*)0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+    if (ImGui::Begin("Debugger1", (bool*)0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
-        CPU_DEBUG::ImGui_PPU_Registers(debugger.sm83);
+        ImVec2 availRegion = ImGui::GetContentRegionAvail();
+        {
+            ImGui::BeginChild("PPU Debugger", ImVec2(0, availRegion.y / 2.f));
+            CPU_DEBUG::ImGui_PPU_Registers(debugger.sm83);
+            ImGui::EndChild();
+        }
+
+        {
+            ImGui::BeginChild("Breakpoint");
+
+            ImGui::SeparatorText("Breakpoint");
+
+            static char buf[5];
+
+            bool shouldHaveBreakpoint = debugger.hasBreakPoint;
+
+            if (debugger.hasBreakPoint)
+            {
+                ImGui::BeginDisabled();
+            }
+
+            ImGui::InputText("##", buf, 5, ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_CharsUppercase);
+            if (ImGui::Button("Set"))
+            {
+                shouldHaveBreakpoint = true;
+                debugger.breakpointAddress = CPU_DEBUG::ConvertHexToNumber(buf);
+            }
+
+            if (debugger.hasBreakPoint)
+            {
+                ImGui::EndDisabled();
+            }
+
+            if (!debugger.hasBreakPoint)
+            {
+                ImGui::BeginDisabled();
+            }
+            
+            if (ImGui::Button("Reset"))
+            {
+                shouldHaveBreakpoint = false;
+            }
+
+            if (!debugger.hasBreakPoint)
+            {
+                ImGui::EndDisabled();
+            }
+
+            debugger.hasBreakPoint = shouldHaveBreakpoint;
+            ImGui::EndChild();
+        }
     }
 
     ImGui::End();
@@ -63,6 +115,7 @@ int main(int argc, char* argv[])
         CPU sm83(&cart);
 
         bool debugMode = true;
+        bool runMode = false;
 
         Debugger debugger;
         debugger.sm83 = &sm83;
@@ -103,6 +156,10 @@ int main(int argc, char* argv[])
                     else if (event.key.scancode == sf::Keyboard::Scan::F11)
                     {
                         debugMode = !debugMode;
+                        if (!debugMode)
+                        {
+                            runMode = true;
+                        }
                     }
                     else if (event.key.scancode == sf::Keyboard::Scan::Space)
                     {
@@ -134,17 +191,38 @@ int main(int argc, char* argv[])
                 UpdateDebugWindow(window, debugger);
                 if (debugger.shouldStep || debugger.shouldRun)
                 {
-                    sm83.CPU_Step();
-                    debugger.shouldStep = false;
+                    if (debugger.hasBreakPoint && CPU_DEBUG::CheckShouldBreak(&sm83, debugger.breakpointAddress))
+                    {
+                        debugger.shouldRun = false;
+                        if (debugger.shouldStep)
+                        {
+                            sm83.CPU_Step();
+                            debugger.shouldStep = false;
+                        }
+                    }
+                    else
+                    {
+                        sm83.CPU_Step();
+                        debugger.shouldStep = false;
+                    }
                 }
                 window.display();
             }
             else
             {
                for (int i = 0; i < 50; ++i)
-                {
-                    sm83.CPU_Step();
-                }
+               {
+                   if (!runMode && debugger.hasBreakPoint && CPU_DEBUG::CheckShouldBreak(&sm83, debugger.breakpointAddress))
+                   {
+                       debugMode = true;
+                       debugger.shouldStep = false;
+                       debugger.shouldRun = false;
+                       break;
+                   }
+
+                   sm83.CPU_Step();
+               }
+               runMode = false;
             }
         }
         ImGui::SFML::Shutdown(window);

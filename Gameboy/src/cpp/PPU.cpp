@@ -55,7 +55,7 @@ void PPU::Step(int clockCycles)
 		if (m_gpuClock >= VBLANK_CYCLES)
 		{
 			m_gpuClock = 0;
-			BYTE y = m_ioMemory[LCDC_Y_BYTE];
+			BYTE y = ++m_ioMemory[LCDC_Y_BYTE];
 
 			if (y > VBLANK_END)
 			{
