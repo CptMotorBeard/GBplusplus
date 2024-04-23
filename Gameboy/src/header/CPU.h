@@ -25,16 +25,30 @@ struct CPU_Register
 	operator WORD& () { return pair; }
 };
 
+struct DMATransfer
+{
+	DMATransfer()
+	{
+		from = 0;
+		currentIndex = 0;
+		active = false;
+	}
+
+	WORD from;
+	WORD currentIndex;
+	bool active;
+};
+
 class CPU
 {
-friend class CPU_DEBUG;
-
 public:
-	CPU(Cartridge* cart);
+	CPU(Cartridge* cart, sf::RenderTarget* screen);
 	~CPU();
 
 	void WriteJoypad(const Joypad& joypad);
 	void CPU_Step();
+
+	void DumpGPU(sf::RenderTarget& renderWindow);
 
 	static constexpr BYTE INTERRUPT_VBLANK = BIT_0;
 	static constexpr BYTE INTERRUPT_LCD = BIT_1;
@@ -47,6 +61,9 @@ public:
 	void ServiceInterrupts();
 
 	BYTE Read(WORD address) const;
+
+	inline unsigned long GetTotalClockCycles() { return m_totalClockCycles; }
+	inline void ResetTotalClockCycles() { m_totalClockCycles = 0; }
 
 private:
 	PPU m_ppu;
@@ -112,6 +129,9 @@ private:
 	void FlushClockCycles();
 
 	int m_clockCycles;
+	unsigned int m_totalClockCycles;
+
+	DMATransfer m_dmaTransferProgress;
 
 	///////////////// Timers /////////////////
 private:
@@ -185,7 +205,7 @@ private:
 
 	///////////////// Opcode Helpers /////////////////
 private:
-	void ADD(WORD value);
+	void ADD(WORD value, BYTE carry = 0);
 	void ADC(WORD value);
 	void AND(BYTE value);
 	void CP(BYTE value);
@@ -193,7 +213,7 @@ private:
 	void INC(BYTE& value);
 	void OR(BYTE value);
 	void SBC(WORD value);
-	void SUB(WORD value);
+	void SUB(WORD value, BYTE carry = 0);
 	void XOR(BYTE value);
 
 	void ADD_16(WORD value);
@@ -244,7 +264,7 @@ private:
 
 #pragma region Bit and Shift Operations
 
-	void BIT	(BYTE opcode);
+	void BIT_OP	(BYTE opcode);
 	void RES	(BYTE opcode);
 	void SET	(BYTE opcode);
 	void SWAP	(BYTE opcode);

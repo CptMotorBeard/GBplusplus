@@ -102,8 +102,6 @@ void MemoryBankController_None::WriteMemory(WORD address, BYTE data)
         }
         return;
     }
-
-    DEBUG_ASSERT(false, "Writing to invalid memory");
 }
 
 //////////////////////////////////////////////////////////////////////////////////////

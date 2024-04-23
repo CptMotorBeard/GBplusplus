@@ -1,12 +1,16 @@
 #include "stdafx.h"
 
-#include <iomanip>
-#include <sstream>
+#include <SFML/Graphics/RenderTarget.hpp>
 
 #include "header/CPU.h"
 #include "header/CPU_Debug.h"
 #include "header/Cartridge.h"
 #include "header/Debug.h"
+
+void CPU::DumpGPU(sf::RenderTarget& renderWindow)
+{
+	m_ppu.DumpTiles(renderWindow);
+}
 
 CPU_Register::CPU_Register(WORD initialValue)
 {
@@ -21,14 +25,15 @@ CPU_Register::CPU_Register(BYTE initialLow, BYTE initialHigh)
 
 /////////////////////////////////////////////////////////////////
 
-CPU::CPU(Cartridge* cart) :
+CPU::CPU(Cartridge* cart, sf::RenderTarget* screen) :
 	PC(0x100),
 	SP(0xFFFE),
 	AF(0x01B0),
 	BC(0x0013),
 	DE(0x00D8),
 	HL(0x014D),
-	m_ppu(),
+	m_dmaTransferProgress(),
+	m_ppu(screen),
 	m_clockCycles(0),
 	m_dividerCounter(0),
 	m_isHalted(false),
@@ -43,7 +48,7 @@ CPU::CPU(Cartridge* cart) :
 	m_io = new BYTE[IO];
 	m_hram = new BYTE[HRAM];
 
-	m_ppu.Initialize(this, m_io);
+	m_ppu.Initialize(this, m_io, m_oam);
 	m_timerCounter = CLOCKSPEED / FREQUENCY_0;
 
 	Write(0xFF00, 0xCF);
@@ -71,6 +76,7 @@ CPU::CPU(Cartridge* cart) :
 	Write(0xFF40, 0x91);
 	Write(0xFF42, 0x00);
 	Write(0xFF43, 0x00);
+	Write(0xFF44, 0x00);
 	Write(0xFF45, 0x00);
 	Write(0xFF47, 0xFC);
 	Write(0xFF48, 0xFF);
@@ -242,9 +248,27 @@ void CPU::SpinCycle(int numMachineCycles)
 
 void CPU::FlushClockCycles()
 {
-	CPU_DEBUG::s_cycles += m_clockCycles;
+	m_totalClockCycles += m_clockCycles;
 	if (m_clockCycles)
 	{
+		if (m_dmaTransferProgress.active)
+		{
+			int cycleCount = m_clockCycles / 4;
+			for (int i = 0; i < cycleCount; ++i)
+			{
+				++m_dmaTransferProgress.currentIndex;
+				if (m_dmaTransferProgress.currentIndex < 0xA0)
+				{
+					m_oam[m_dmaTransferProgress.currentIndex] = Read(m_dmaTransferProgress.from + m_dmaTransferProgress.currentIndex);
+				}
+				else
+				{
+					m_dmaTransferProgress.active = false;
+					break;
+				}
+			}
+		}
+
 		TimerStep(m_clockCycles);
 		m_ppu.Step(m_clockCycles);
 	}
@@ -364,7 +388,6 @@ void CPU::ServiceInterrupts()
 		if (interruptsToProcess & INTERRUPT_VBLANK)
 		{
 			PC = 0x0040;
-			// TODO: should also tell the GPU to draw the screen
 		}
 		else if (interruptsToProcess & INTERRUPT_LCD)
 		{
@@ -405,8 +428,8 @@ BYTE CPU::Read(WORD address) const
 	// Reading from the 8 KiB Video RAM(VRAM)
 	if (address < 0xA000)
 	{
-		// TODO
-		return 0x00;
+		MEMORY_ADDRESS internalAddress = address - 0x8000;
+		return m_ppu.ReadVRAM(internalAddress);
 	}
 
 	// Reading from one of the 8 KiB External RAM	banks from the cartridge
@@ -524,7 +547,8 @@ void CPU::Write(WORD address, BYTE data)
 	// Writing to the 8 KiB Video RAM(VRAM)
 	if (address < 0xA000)
 	{
-		// TODO
+		MEMORY_ADDRESS internalAddress = address - 0x8000;
+		m_ppu.WriteVRAM(internalAddress, data);
 		return;
 	}
 
@@ -557,8 +581,13 @@ void CPU::Write(WORD address, BYTE data)
 	// Writing to Object attribute memory
 	if (address < 0xFEA0)
 	{
-		MEMORY_ADDRESS internalAddress = address - 0xFE00;
-		m_oam[internalAddress] = data;
+		// OAM memory is only accessable during HBLANK or VBLANK periods
+		if (m_io[PPU::STAT_REG] > 1)
+		{
+			MEMORY_ADDRESS internalAddress = address - 0xFE00;
+			m_oam[internalAddress] = data;
+		}
+
 		return;
 	}
 
@@ -594,10 +623,17 @@ void CPU::Write(WORD address, BYTE data)
 				std::cout << static_cast<char>(m_io[0x01]);
 			}
 		}
-		else if (address == 0xFF04)
+		else if (address == 0xFF04 || address == 0xFF44)
 		{
-			// The divider register resets to 0 when written to
+			// These registers reset to 0 when written to
 			m_io[internalAddress] = 0x00;
+		}
+		else if (address == 0xFF46)
+		{
+			// The DMA register initiates a transfer from RAM to OAM
+			m_dmaTransferProgress.from = data << 8;
+			m_dmaTransferProgress.currentIndex = 0;
+			m_dmaTransferProgress.active = true;
 		}
 		else
 		{
@@ -667,16 +703,16 @@ WORD CPU::PopStack()
 
 /////////////////////////////////////////////////////////////////
 
-void CPU::ADD(WORD value)
+void CPU::ADD(WORD value, BYTE carry)
 {
-	WORD result = REGISTER_A + value;
+	WORD result = REGISTER_A + value + carry;
 
 	// Carry flag is set if we overflow from bit 7
 	const bool hasFullCarry = result & 0xFF00;
 	SetFlagIf(FLAG_C, hasFullCarry);
 
 	// Half carry flag is set if we overflow from bit 3
-	BYTE halfAdd = (REGISTER_A & 0xF) + (value & 0xF);
+	BYTE halfAdd = (REGISTER_A & 0xF) + (value & 0xF) + carry;
 	const bool hasHalfCarry = halfAdd & 0xF0;
 	SetFlagIf(FLAG_H, hasHalfCarry);
 
@@ -689,7 +725,7 @@ void CPU::ADD(WORD value)
 
 void CPU::ADC(WORD value)
 {
-	ADD(value + IsFlagSet(FLAG_C));
+	ADD(value, IsFlagSet(FLAG_C));
 }
 
 void CPU::AND(BYTE value)
@@ -749,18 +785,19 @@ void CPU::OR(BYTE value)
 
 void CPU::SBC(WORD value)
 {
-	SUB(value + IsFlagSet(FLAG_C));
+	SUB(value, IsFlagSet(FLAG_C));
 }
 
-void CPU::SUB(WORD value)
+void CPU::SUB(WORD value, BYTE carry)
 {
-	const bool isCarry = value > REGISTER_A;
+	WORD total = value + carry;
+	const bool isCarry = total > REGISTER_A;
 	SetFlagIf(FLAG_C, isCarry);
 
-	const bool halfCarry = ((REGISTER_A & 0xF) - (value & 0xF)) & 0x10;
+	const bool halfCarry = ((REGISTER_A & 0xF) - (value & 0xF) - carry) & 0x10;
 	SetFlagIf(FLAG_H, halfCarry);
 
-	REGISTER_A -= value;
+	REGISTER_A -= total;
 
 	SetFlag(FLAG_N);
 	SetZFlag(REGISTER_A);
@@ -1248,7 +1285,7 @@ void CPU::INC_RR(BYTE opcode)
 
 #pragma region Bit and Shift Operations
 
-void CPU::BIT(BYTE opcode)
+void CPU::BIT_OP(BYTE opcode)
 {
 	BYTE value = GetValueBasedOnOpCode(opcode);
 	BYTE bit = 1 << ((opcode >> 3) & 7);
@@ -1440,7 +1477,7 @@ void CPU::SRA(BYTE opcode)
 {
 	BYTE value = GetValueBasedOnOpCode(opcode);
 	bool willShiftACarry = value & BIT_0;
-	bool oldBit7 = value & BIT_7;
+	BYTE oldBit7 = value & BIT_7;
 
 	value >>= 1;
 	value |= oldBit7;
@@ -1787,8 +1824,15 @@ void CPU::PUSH_RR(BYTE opcode)
 
 void CPU::POP_RR(BYTE opcode)
 {
+	WORD stackValue = PopStack();
+
 	BYTE sourceRegister = ((opcode >> 4) + 1) & 0x3;
-	registers[sourceRegister] = PopStack();
+	if (sourceRegister == REGISTER_AF)
+	{
+		stackValue &= 0xFFF0;
+	}
+
+	registers[sourceRegister] = stackValue;
 }
 
 #pragma endregion
@@ -1816,33 +1860,31 @@ void CPU::DAA(BYTE opcode)
 
 	if (IsFlagSet(FLAG_N))
 	{
-		if (IsFlagSet(FLAG_H))
-		{
-			result = (result - 0x06) & 0xFF;
-		}
-
 		if (IsFlagSet(FLAG_C))
 		{
 			result -= 0x60;
 		}
+
+		if (IsFlagSet(FLAG_H))
+		{
+			result = (result - 0x06) & 0xFF;
+		}
 	}
 	else
 	{
+		if (IsFlagSet(FLAG_C) || result > 0x99) {
+			result += 0x60;
+			SetFlag(FLAG_C);
+		}
+
 		if (IsFlagSet(FLAG_H) || (result & 0x0F) > 0x09)
 		{
 			result += 0x06;
 		}
-
-		if (IsFlagSet(FLAG_C) || result > 0x9F) {
-			result += 0x60;
-		}
 	}
-
-	const bool setCarryFlag = (result & 0x100) == 0x100;
 
 	REGISTER_A = result & 0xFF;
 	SetZFlag(REGISTER_A);
-	SetFlagIf(FLAG_C, setCarryFlag);
 	ClearFlag(FLAG_H);
 }
 
@@ -1874,6 +1916,7 @@ void CPU::SCF(BYTE opcode)
 
 void CPU::STOP(BYTE opcode)
 {
+	m_isHalted = true;
 	m_isStopped = true;
 
 	// When entering with IF & IE, the 2nd byte of STOP is actually executed
@@ -1881,7 +1924,7 @@ void CPU::STOP(BYTE opcode)
 	const bool interruptPending = m_interruptEnableRegister & interruptFlag & 0x1F;
 	if (!interruptPending)
 	{
-		CycleRead_PC();
+		// CycleRead_PC();
 	}
 }
 
@@ -1917,7 +1960,7 @@ void CPU::CB(BYTE opcode)
 	default:
 		if ((opcode & 0xC0) == 0x40)
 		{
-			BIT(opcode);
+			BIT_OP(opcode);
 		}
 		else if ((opcode & 0xC0) == 0x80)
 		{

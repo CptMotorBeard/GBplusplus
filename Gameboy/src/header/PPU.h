@@ -1,20 +1,66 @@
 #pragma once
+#include <SFML/Graphics/Texture.hpp>
 
 class CPU;
 class PPU
 {
-friend class CPU_DEBUG;
-
 public:
-	PPU();
+	PPU(sf::RenderTarget* screen);
 	~PPU();
 
-	void Initialize(CPU* sm83, BYTE* ioMemory);
+	void DumpTiles(sf::RenderTarget& renderWindow);
+
+	void Initialize(CPU* sm83, BYTE* ioMemory, BYTE* oamMemory);
 	void Step(int clockCycles);
+	void DrawToScreen();
+
+	BYTE ReadVRAM(WORD address) const;
+	void WriteVRAM(WORD address, BYTE data);
+
+private:
+	void CleanLine();
+	void RenderScanline();
+
+	void ProcessScanline();
+	void ProcessBackgroundLayer();
+	void ProcessWindowLayer();
+	void ProcessSpriteLayer();
+
+public:
+	static constexpr WORD LCDC_BYTE = 0x40;
+	static constexpr WORD STAT_REG = 0x41;
+	static constexpr WORD SCROLL_Y_BYTE = 0x42;
+	static constexpr WORD SCROLL_X_BYTE = 0x43;
+	static constexpr WORD LCDC_Y_BYTE = 0x44;
+	static constexpr WORD PALETTE_DATA = 0x47;
+	static constexpr WORD SPRITE_PALETTE_DATA = 0x48;
+	static constexpr WORD WINDOW_X = 0x4A;
+	static constexpr WORD WINDOW_Y = 0x4B;
+
+	enum GPUMode
+	{
+		// Send head to first row (204 cycles)
+		MODE_HBLANK = 0x00,
+		// Send head to first column (4560 cycles), 10 cycles at 456 each
+		// Any values of LCDC_Y between 144 and 153 indicates the V-Blank period
+		MODE_VBLANK = 0x01,
+		// This time is used to fetch data from the Object Attribute Memory (80 cycles)
+		MODE_OAMLOAD = 0x02,
+		// Takes loaded line and draws it on screen (172 cycles)
+		MODE_LCD = 0x03,
+	};
 
 private:
 	CPU* m_sm83;
 	BYTE* m_ioMemory;
+	BYTE* m_oamMemory;
+	sf::Image m_screenPixelBuffer;
+	sf::Texture m_displayTexture;
+	sf::RenderTarget* m_screen;
+
+	std::vector<sf::Color> m_scanline;
+
+	BYTE* m_vram;
 
 	/*
 		0xFF40
@@ -39,24 +85,6 @@ private:
 		  control over the value so we directly modify it using cpu[LCDC_Y_BYTE]++
 	*/
 
-	static constexpr WORD LCDC_BYTE     = 0x40;
-	static constexpr WORD SCROLL_Y_BYTE = 0x42;
-	static constexpr WORD SCROLL_X_BYTE = 0x43;
-	static constexpr WORD LCDC_Y_BYTE   = 0x44;
-
-	enum class Mode
-	{
-		// Send head to first row (204 cycles)
-		HBLANK,
-		// Send head to first column (4560 cycles), 10 cycles at 456 each
-		// Any values of LCDC_Y between 144 and 153 indicates the V-Blank period
-		VBLANK,
-		// This time is used to fetch data from the Object Attribute Memory (80 cycles)
-		OAMLOAD,
-		// Takes loaded line and draws it on screen (172 cycles)
-		LCD,
-	};
-
 	static constexpr int HBLANK_CYCLES = 204;
 	static constexpr int VBLANK_CYCLES = 456;
 	static constexpr int VBLANK_START = 144;
@@ -64,20 +92,16 @@ private:
 	static constexpr int OAMLOAD_CYCLES = 80;
 	static constexpr int LCD_CYCLES = 172;
 
-	Mode m_gpuMode;
 	int m_gpuClock;
-
-	float m_currentLinePixels[SCREEN_WIDTH * 3];
 
 	// The gameboy handles four different colours. Black (Pixel OFF), White (Pixel ON),
 	// Dark Grey (33% ON) and Light Grey (66% ON).
-	float mColourPalette[4][3] =
+	sf::Color m_colourPalette[4] =
 	{
-		// R      G       B
-		  {1.0f,  1.0f,   1.0f},
-		  {0.66f, 0.66f,  0.66f},
-		  {0.33f, 0.33f,  0.33f},
-		  {0.0f,  0.0f,   0.0f}		// - percent of 255
+		sf::Color(0xFF, 0xFF, 0xFF, 0xFF),
+		sf::Color(0xAA, 0xAA, 0xAA, 0xFF),
+		sf::Color(0x55, 0x55, 0x55, 0xFF),
+		sf::Color(0x00, 0x00, 0x00, 0xFF)
 	};
 
 	/*
@@ -114,12 +138,12 @@ private:
 		BYTE options;
 
 		// Options Bit 7 - Sprite / Background priority (0: Above background, 1 : Below Background)
-		bool IsAboveBackground() const;
+		bool IsBackgroundPrioritized() const;
 		// Options Bit 6 - Y - flip(0: Normal, 1 : Vertical Flip)
 		bool ShouldFlipY() const;
 		// Options Bit 5 - X-flip (0: Normal, 1: Horizontal Flip)
 		bool ShouldFlipX() const;
 		// Options Bit 4 - Palette (0: OBJ Palette 0, 1: OBJ Palette 1)
-		bool UseObjectPalette0() const;
+		bool UseObjectPalette1() const;
 	};
 };
