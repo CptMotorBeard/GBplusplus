@@ -260,7 +260,6 @@ void MemoryBankController_MBC1::WriteMemory(WORD address, BYTE data)
     // RAM can only be accessed if it is enabled
     if (address >= 0xA000 && address <= 0xC000)
     {
-        DEBUG_ASSERT_N(m_ramEnabled);
         if (m_ramEnabled)
         {
             MEMORY_ADDRESS ramAddress = address - 0xA000;

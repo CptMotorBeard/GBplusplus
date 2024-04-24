@@ -20,7 +20,18 @@ int main(int argc, char* argv[])
         window.setFramerateLimit(60);
 
         CPU sm83(&cart, &window);
+        Joypad joypad;
+
         sf::Clock dt;
+
+        joypad.a = false;
+        joypad.b = false;
+        joypad.start = false;
+        joypad.select = false;
+        joypad.up = false;
+        joypad.down = false;
+        joypad.left = false;
+        joypad.right = false;
 
         while (window.isOpen())
         {
@@ -31,6 +42,28 @@ int main(int argc, char* argv[])
                 {
                     window.close();
                     break;
+                }
+                else if (event.type == sf::Event::KeyPressed)
+                {
+                    if (event.key.scancode == sf::Keyboard::Scancode::Z) { joypad.a = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::X) { joypad.b = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Enter) { joypad.start = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Backspace) { joypad.select = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Up) { joypad.up = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Down) { joypad.down = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Left) { joypad.left = true; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Right) { joypad.right = true; }
+                }
+                else if (event.type == sf::Event::KeyReleased)
+                {
+                    if (event.key.scancode == sf::Keyboard::Scancode::Z) { joypad.a = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::X) { joypad.b = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Enter) { joypad.start = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Backspace) { joypad.select = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Up) { joypad.up = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Down) { joypad.down = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Left) { joypad.left = false; }
+                    else if (event.key.scancode == sf::Keyboard::Scancode::Right) { joypad.right = false; }
                 }
             }
 
@@ -46,6 +79,7 @@ int main(int argc, char* argv[])
             }
 
             dt.restart();
+            sm83.WriteJoypad(joypad);
             while (sm83.GetTotalClockCycles() < 17480)
             {
                 sm83.CPU_Step();

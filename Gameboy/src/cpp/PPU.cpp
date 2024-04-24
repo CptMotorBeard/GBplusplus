@@ -197,8 +197,8 @@ void PPU::DumpTiles(sf::RenderTarget& renderWindow)
 void PPU::ProcessScanline()
 {
 	ProcessBackgroundLayer();
-	// ProcessWindowLayer();
-	// ProcessSpriteLayer();
+	ProcessWindowLayer();
+	ProcessSpriteLayer();
 }
 
 void PPU::ProcessBackgroundLayer()

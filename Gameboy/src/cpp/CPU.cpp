@@ -129,7 +129,7 @@ void CPU::WriteJoypad(const Joypad& joypad)
 
 	m_io[joypadRegisterAddress] = joypadRegister;
 
-	if (((oldJoypadRegister & 0xFF) ^ (joypadRegister & 0xFF)) & (oldJoypadRegister & 0xFF))
+	if (joypadRegister != 0xCF && ((oldJoypadRegister & 0xFF) ^ (joypadRegister & 0xFF)) & (oldJoypadRegister & 0xFF))
 	{
 		// old joypad had a 1 that was swapped to a 0. This triggers a joypad interrupt
 		RequestInterrupt(INTERRUPT_JOYPAD);
