@@ -123,6 +123,7 @@ void PPU::DrawToScreen()
 		screenSize.x / SCREEN_WIDTH,
 		screenSize.y / SCREEN_HEIGHT
 	);
+	drawSprite.setPosition(0, 19);
 
 	m_screen->draw(drawSprite);
 }

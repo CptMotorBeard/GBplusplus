@@ -3,7 +3,6 @@
 #include <SFML/Graphics/RenderTarget.hpp>
 
 #include "header/CPU.h"
-#include "header/CPU_Debug.h"
 #include "header/Cartridge.h"
 #include "header/Debug.h"
 
@@ -25,7 +24,7 @@ CPU_Register::CPU_Register(BYTE initialLow, BYTE initialHigh)
 
 /////////////////////////////////////////////////////////////////
 
-CPU::CPU(Cartridge* cart, sf::RenderTarget* screen) :
+CPU::CPU(sf::RenderTarget* screen) :
 	PC(0x100),
 	SP(0xFFFE),
 	AF(0x01B0),
@@ -38,10 +37,11 @@ CPU::CPU(Cartridge* cart, sf::RenderTarget* screen) :
 	m_dividerCounter(0),
 	m_isHalted(false),
 	m_isStopped(false),
-	m_cartridge(cart),
+	m_cartridge(nullptr),
 	m_interruptEnableRegister(0x00),
 	m_interruptMasterEnableFlag(false),
-	m_interruptMasterTimer(0xFF)
+	m_interruptMasterTimer(0xFF),
+	m_isRunning(false)
 {
 	m_internalRAM = new BYTE[CPU_RAM];
 	m_oam = new BYTE[OAM];
@@ -49,6 +49,42 @@ CPU::CPU(Cartridge* cart, sf::RenderTarget* screen) :
 	m_hram = new BYTE[HRAM];
 
 	m_ppu.Initialize(this, m_io, m_oam);
+	SetupOpcodes();
+}
+
+CPU::~CPU()
+{
+	delete[] m_internalRAM;
+	delete[] m_oam;
+	delete[] m_io;
+	delete[] m_hram;
+}
+
+void CPU::AddCartridge(Cartridge* cart)
+{
+	m_cartridge = cart;
+}
+
+void CPU::PowerOn()
+{
+	m_isRunning = true;
+
+	PC = 0x100;
+	SP = 0xFFFE;
+	AF = 0x01B0;
+	BC = 0x0013;
+	DE = 0x00D8;
+	HL = 0x014D;
+
+	m_dmaTransferProgress.active = false;
+	m_clockCycles = 0;
+	m_dividerCounter = 0;
+	m_isHalted = false;
+	m_isStopped = false;
+	m_interruptEnableRegister = 0x00;
+	m_interruptMasterEnableFlag = false;
+	m_interruptMasterTimer = 0xFF;
+
 	m_timerCounter = CLOCKSPEED / FREQUENCY_0;
 
 	Write(0xFF00, 0xCF);
@@ -83,16 +119,6 @@ CPU::CPU(Cartridge* cart, sf::RenderTarget* screen) :
 	Write(0xFF49, 0xFF);
 	Write(0xFF4A, 0x00);
 	Write(0xFF4B, 0x00);
-
-	SetupOpcodes();
-}
-
-CPU::~CPU()
-{
-	delete[] m_internalRAM;
-	delete[] m_oam;
-	delete[] m_io;
-	delete[] m_hram;
 }
 
 void CPU::WriteJoypad(const Joypad& joypad)

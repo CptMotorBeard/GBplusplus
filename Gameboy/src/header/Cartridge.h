@@ -4,8 +4,10 @@ class MemoryBankController;
 class Cartridge
 {
 public:
-	explicit Cartridge(std::string filePath);
+	explicit Cartridge();
 	~Cartridge();
+
+	void OpenFile(std::string filePath);
 
 	// Addresses should be in the range 0x0000 - 0x7FFF for rom memory or 0xA000 to 0xBFFF for ram memory
 	BYTE ReadMemory(WORD address);
@@ -13,6 +15,7 @@ public:
 	void WriteMemory(WORD address, BYTE data);
 
 	const std::string& GetTitle() const { return m_title; }
+	const bool IsValid() const { return m_mbc; }
 
 	int DumpRom(BYTE*& rom) const;
 

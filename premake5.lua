@@ -30,7 +30,9 @@ function defaultConfigurations()
             "vorbisfile.lib",
             "vorbis.lib",
             "ogg.lib",
-            "ws2_32.lib"
+            "ws2_32.lib",
+            "comdlg32.lib",
+            "ole32.lib"
         }
 	filter "configurations:OptDebug"
 		defines
@@ -58,7 +60,9 @@ function defaultConfigurations()
             "vorbisfile.lib",
             "vorbis.lib",
             "ogg.lib",
-            "ws2_32.lib"
+            "ws2_32.lib",
+            "comdlg32.lib",
+            "ole32.lib"
         }
         
 	filter "configurations:Distribution"
@@ -87,7 +91,9 @@ function defaultConfigurations()
             "vorbisfile.lib",
             "vorbis.lib",
             "ogg.lib",
-            "ws2_32.lib"
+            "ws2_32.lib",
+            "comdlg32.lib",
+            "ole32.lib"
         }
 end
 
@@ -116,6 +122,7 @@ project "Gameboy"
 	files
 	{
 		"%{prj.name}/src/**.h",
+		"%{prj.name}/src/**.c",
 		"%{prj.name}/src/**.cpp"
 	}
 	

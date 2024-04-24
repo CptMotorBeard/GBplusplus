@@ -5,8 +5,13 @@
 #include "header/Cartridge.h"
 #include "header/MemoryBankControllers.h"
 
-Cartridge::Cartridge(std::string filePath)
+Cartridge::Cartridge()
 	: m_mbc(nullptr)
+{
+
+}
+
+void Cartridge::OpenFile(std::string filePath)
 {
 	std::ifstream in(filePath, std::ios_base::in | std::ios_base::binary);
 
@@ -15,16 +20,19 @@ Cartridge::Cartridge(std::string filePath)
 	length = in.tellg();
 	in.seekg(0, std::ios::beg);
 
-	char* buffer = new char[length];
-	in.read(buffer, length);
-	in.close();
+	if (length > 0x4000)
+	{
+		char* buffer = new char[length];
+		in.read(buffer, length);
+		in.close();
 
-	CartridgeHeader* header = reinterpret_cast<CartridgeHeader *>(&buffer[0x100]);
-	m_mbc = MemoryBankControllerFactory::CreateMemoryBank(header->cartridgeType, header->romSize, header->ramSize, buffer, length);
+		CartridgeHeader* header = reinterpret_cast<CartridgeHeader*>(&buffer[0x100]);
+		m_mbc = MemoryBankControllerFactory::CreateMemoryBank(header->cartridgeType, header->romSize, header->ramSize, buffer, length);
 
-	m_title = std::string(reinterpret_cast<char *>(header->titleSection.title));
+		m_title = std::string(reinterpret_cast<char*>(header->titleSection.title));
 
-	delete[] buffer;
+		delete[] buffer;
+	}
 }
 
 Cartridge::~Cartridge()

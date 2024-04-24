@@ -42,9 +42,11 @@ struct DMATransfer
 class CPU
 {
 public:
-	CPU(Cartridge* cart, sf::RenderTarget* screen);
+	CPU(sf::RenderTarget* screen);
 	~CPU();
 
+	void AddCartridge(Cartridge* cart);
+	void PowerOn();
 	void WriteJoypad(const Joypad& joypad);
 	void CPU_Step();
 
@@ -62,11 +64,13 @@ public:
 
 	BYTE Read(WORD address) const;
 
+	inline const bool IsRunning() { return m_isRunning; }
 	inline unsigned long GetTotalClockCycles() { return m_totalClockCycles; }
 	inline void ResetTotalClockCycles() { m_totalClockCycles = 0; }
 	inline void Draw() { m_ppu.DrawToScreen(); }
 
 private:
+	bool m_isRunning;
 	PPU m_ppu;
 
 	///////////////// Registers /////////////////
