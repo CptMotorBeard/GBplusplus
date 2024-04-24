@@ -64,6 +64,7 @@ public:
 
 	inline unsigned long GetTotalClockCycles() { return m_totalClockCycles; }
 	inline void ResetTotalClockCycles() { m_totalClockCycles = 0; }
+	inline void Draw() { m_ppu.DrawToScreen(); }
 
 private:
 	PPU m_ppu;

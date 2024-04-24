@@ -54,8 +54,9 @@ int main(int argc, char* argv[])
                     break;
                 }
             }
-            sm83.ResetTotalClockCycles();
 
+            sm83.ResetTotalClockCycles();
+            sm83.Draw();
             window.display();
         }
     }

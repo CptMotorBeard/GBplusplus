@@ -18,7 +18,6 @@ public:
 	void WriteVRAM(WORD address, BYTE data);
 
 private:
-	void CleanLine();
 	void RenderScanline();
 
 	void ProcessScanline();
@@ -37,17 +36,26 @@ public:
 	static constexpr WORD WINDOW_X = 0x4A;
 	static constexpr WORD WINDOW_Y = 0x4B;
 
-	enum GPUMode
+	static constexpr BYTE LCD_ENABLE = BIT_7;
+	static constexpr BYTE WINDOW_TILEMAP = BIT_6;
+	static constexpr BYTE WINDOW_ENABLE = BIT_5;
+	static constexpr BYTE TILE_LOCATION = BIT_4;
+	static constexpr BYTE BG_TILEMAP = BIT_3;
+	static constexpr BYTE SPRITE_SIZE = BIT_2;
+	static constexpr BYTE SPRITE_ENABLE = BIT_1;
+	static constexpr BYTE BG_ENABLE = BIT_0;
+
+	enum class GPUMode
 	{
 		// Send head to first row (204 cycles)
-		MODE_HBLANK = 0x00,
+		HBLANK = 0x00,
 		// Send head to first column (4560 cycles), 10 cycles at 456 each
 		// Any values of LCDC_Y between 144 and 153 indicates the V-Blank period
-		MODE_VBLANK = 0x01,
+		VBLANK = 0x01,
 		// This time is used to fetch data from the Object Attribute Memory (80 cycles)
-		MODE_OAMLOAD = 0x02,
-		// Takes loaded line and draws it on screen (172 cycles)
-		MODE_LCD = 0x03,
+		OAMLOAD = 0x02,
+		// Take the current scanline and draws it on screen (172 cycles)
+		DRAWING = 0x03,
 	};
 
 private:
@@ -58,8 +66,9 @@ private:
 	sf::Texture m_displayTexture;
 	sf::RenderTarget* m_screen;
 
-	std::vector<sf::Color> m_scanline;
+	std::vector<BYTE> m_scanline;
 
+	GPUMode m_mode;
 	BYTE* m_vram;
 
 	/*
