@@ -138,6 +138,8 @@ void CPU::WriteJoypad(const Joypad& joypad)
 
 void CPU::CPU_Step()
 {
+	ServiceInterrupts();
+
 	BYTE instruction = CycleRead_PC();
 
 	func_opcode opcode = m_opcodes[instruction];
@@ -381,31 +383,38 @@ void CPU::ServiceInterrupts()
 			// 2 NOPS for 8 cycles
 			// PC register is pushed to the stack for another 8
 			// 4 final cycles to update the PC register
-			m_clockCycles += 20;
+			m_clockCycles += 12;
 			PushStack(PC);
 		}
 
 		if (interruptsToProcess & INTERRUPT_VBLANK)
 		{
+			interruptFlag &= ~INTERRUPT_VBLANK;
 			PC = 0x0040;
 		}
 		else if (interruptsToProcess & INTERRUPT_LCD)
 		{
+			interruptFlag &= ~INTERRUPT_LCD;
 			PC = 0x0048;
 		}
 		else if (interruptsToProcess & INTERRUPT_TIMER)
 		{
+			interruptFlag &= ~INTERRUPT_TIMER;
 			PC = 0x0050;
 		}
 		else if (interruptsToProcess & INTERRUPT_SERIAL)
 		{
+			interruptFlag &= ~INTERRUPT_SERIAL;
 			PC = 0x0058;
 		}
 		else if (interruptsToProcess & INTERRUPT_JOYPAD)
 		{
+			interruptFlag &= ~INTERRUPT_JOYPAD;
 			m_isStopped = false;
 			PC = 0x0060;
 		}
+
+		m_io[0x0F] = interruptFlag;
 	}
 	else
 	{
